@@ -6,6 +6,7 @@
 
 #define MAX_AGE 120
 
+void generate_list(person_t* people, int number);
 void printPeople(person_t* people, int number);
 
 int main(int argc, char** argv){
@@ -17,18 +18,11 @@ int main(int argc, char** argv){
   
   int amount_people= atoi(argv[1]);
   time_t startRand=atoi(argv[2]);
+  srand(time(&startRand));
   
   person_t* people=(person_t*)malloc(amount_people*sizeof(person_t));
   
-  srand(time(&startRand));
-  int random=0;
-  
-  //generate people randomly
-  for(int i=0; i<amount_people;i++){
-    random=rand()%MAX_AGE;
-    gen_name((people+i)->name);
-    (people+i)->age=random;
-  }
+  generate_list(people, amount_people);
   
   printPeople(people,amount_people);
   
@@ -37,6 +31,15 @@ int main(int argc, char** argv){
   return EXIT_SUCCESS; 
 }
 
+void generate_list(person_t* people, int number){
+  int random=0;
+  //generate people randomly
+  for(int i=0; i<number;i++){
+    random=rand()%MAX_AGE;
+    gen_name((people+i)->name);
+    (people+i)->age=random;
+  }
+}
 
 void printPeople(person_t* people, int number){
   for(int i=0; i<number; i++){
