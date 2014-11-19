@@ -1,0 +1,31 @@
+Countsort-Algorithmus
+
+Überlegungen:
+
+  Histogram: 
+      Das Erzeugen eines Histograms kann als "embarrassingly parallel" angesehen werden,
+      da keine Abhängigkeit zwischen Iterationsschritten besteht.
+ 
+      Die Häufigkeit eines Elements im Array wird am besten mittels eines Threads ermittelt.
+      Wie: Man erzeugt M(Größe des Histogram Array) Threads, jeder Thread berechnet die Häufigkeit eines Elements.
+      Bsp.: Anzahl der Threads ist so groß wie die Anzahl an unterschiedlichen Elementen im Inputarray, keine Synchronisation notwendig!!
+      GPU oder CPU? : Hängt stark von der Anzahl der unterschieldichen Elemente ab, bei geringer Anzahl ist die CPU performanter, andernfalls
+		      die GPU.
+
+      Zu erwähnen wäre da noch, dass die Berechnung der Häufigkeit ansich ebenfalls parallelisiert werden kann.
+      Wie: Man erzeugt N(Größe des Inputarrays) Threads, bei einem Fund wird eine gemeinsame Variable (volatile) inkrementiert,
+      oder die Threads befüllen einen temporären Buffer (bei Fund mit 1 ansonsten 0) im Anschluss erfolgt reduction auf den temporären
+      Buffer. Wenn man die Suche parallelisiert, so muss man die Threads synchronisieren. 
+      
+      
+  Prefix-Sum:
+      Wie in der Vorlesung besprochen, bieten sich 2 Algorithmen an, um den Prefix-Sum parallel zu berechen.
+      Sequentiell, Komplexität: 	O(n)
+      Hillis & Steele, Komplexität: 	O(n log(n)) 			-> Synchronisation notwendig
+      Optimierte Variante:		2n-2(additionen),n-1(swap)	-> mehrere Synchronisationen notwendig, da zuerst Up-Sweep und dann  Down-Sweep 
+
+
+  Sortieren:
+      Wenn Inputarray aus unterschiedlichen Elementen besteht, dann kann  man die Prozedur parallelieren ohne zu synchronisieren.
+      
+      
