@@ -35,7 +35,7 @@ cl_event* allocateMemoryForEvent(int numberOfEvents){
 void printResult(VALUE* matrix, int amount, int elemsInRow, char* info){
   printf("%s\n", info);
   for(int i=0; i<amount; i++){
-    printf("%f\t", matrix[i]);
+    printf("%0.0f\t", matrix[i]);
     if((i+1)%elemsInRow==0) printf("\n");
   }
   printf("\n");

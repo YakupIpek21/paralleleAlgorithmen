@@ -55,7 +55,7 @@ int main(int argc, char** argv){
 		data[j] = dsfmt_genrand_close1_open2(&rand_state);
 	}
 	
-	printResult(data, elems, 4, "INPUT");
+//	printResult(data, elems, 4, "INPUT");
 	
 	result_seq[0]=0;
 	/*Sequential Scan*/
@@ -67,10 +67,11 @@ int main(int argc, char** argv){
 	
 	
 	//ocl initialization
+	size_t deviceInfo;
 	cl_context context;
 	cl_command_queue command_queue;
 	cl_device_id device_id = cluInitDevice(CL_DEVICE, &context, &command_queue);
-  
+
   
 	// create memory buffer
 	cl_mem mem_data=clCreateBuffer(context, CL_MEM_READ_ONLY| CL_MEM_USE_HOST_PTR,elems*sizeof(VALUE), data, &err);
@@ -107,7 +108,7 @@ int main(int argc, char** argv){
 	cluSetKernelArguments(kernel, 2, sizeof(cl_mem), (void *)&mem_data, sizeof(cl_mem), (void*)&mem_result);
 	
 	//execute kernel  	     
-	CLU_ERRCHECK(clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, globalWorkGroupSize, localWorkGroupSize, 0, NULL, &(events[1])), "Failed to enqueue 2D kernel");		      
+	CLU_ERRCHECK(clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, globalWorkGroupSize, NULL, 0, NULL, &(events[1])), "Failed to enqueue 2D kernel");		      
 
 	//read values back from device
 	CLU_ERRCHECK(clEnqueueReadBuffer(command_queue, mem_result, CL_TRUE, 0, elems*sizeof(VALUE), result, 0, NULL, &(events[1])),"Failed to read Min Values");
@@ -123,6 +124,9 @@ int main(int argc, char** argv){
 	start=getProfileTime(events,1,0);
 	end=getProfileTime(events,1,1);
 	printProfileInfo(start,end,"Improved Algorithm Time:");
+	
+	clGetDeviceInfo(device_id, CL_DEVICE_MAX_WORK_GROUP_SIZE,sizeof(size_t), &deviceInfo,NULL );
+	printf("DEVICE INFO MAX_WORK_GROUP_SIZE: %d\n", (int) deviceInfo);
 	
 	printf("OCL Device: %s\n", cluGetDeviceDescription(device_id, CL_DEVICE));
 	printf("Done, took %16llu ms\n", time_ms()-start_time);
