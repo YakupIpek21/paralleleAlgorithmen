@@ -73,7 +73,7 @@ __kernel void prefix_scan_hillissteele(__global VALUE* data, __global VALUE* res
   for(int offset=1; offset<n; offset <<=1){
       pout= 1-pout;
       pin = 1-pout;
-      if(thid>=offset){
+      if(localIndex>=offset){
 	  tmp[pout*n+localIndex]=tmp[pin*n+localIndex]+tmp[pin*n+localIndex-offset];
       }else{
 	  tmp[pout*n+localIndex]=tmp[pin*n+localIndex];
@@ -81,19 +81,28 @@ __kernel void prefix_scan_hillissteele(__global VALUE* data, __global VALUE* res
       barrier(CLK_LOCAL_MEM_FENCE);
   }
   if(flag){
-    if(localIndex==n-1){sumBuffer[get_group_id(0)]=tmp[localIndex];} // since exclusive scan add last element to total sum
+
+    if(localIndex==n-1){ // since exclusive scan, last element must be added to total sum
+	  sumBuffer[get_group_id(0)]=tmp[pout*n+localIndex]+data[thid];
+	//  printf("GLOBALID: %d, Data_last_value: %0.0f\n",thid, data[thid]);
+	//  printf("GLOBALID: %d, LOCALID: %d,SUM VALUE: %0.0f\n",thid,localIndex,tmp[localIndex]+data[thid]);
+    } 
+    
   }
   result[thid]=tmp[pout*n+localIndex];
-
 }
 
 
-__kernel void prefix_scan_last_stage(__global VALUE* data, __global VALUE* sums, int border){
-
+__kernel void prefix_scan_last_stage(__global VALUE* data, __global VALUE* sums, int border, int flag){
+  
   int groudId= get_group_id(0);
   int thid= get_global_id(0);
-  if(groudId<border-1){
-    data[2*thid+get_local_size(0)*2]+=sums[groudId+1];
-    data[2*thid+1+get_local_size(0)*2]+=sums[groudId+1];
+  if(flag){	//downsweep
+      if(groudId<border-1){
+	data[2*thid+get_local_size(0)*2]+=sums[groudId+1];
+	data[2*thid+1+get_local_size(0)*2]+=sums[groudId+1];
+      }
+  }else{	//hillissteele
+	data[thid+get_local_size(0)]+=sums[groudId+1];
   }
 }

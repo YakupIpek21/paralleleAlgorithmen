@@ -11,4 +11,4 @@ fi
 
 gcc -O2 -std=c99 $OCLLIB hillissteele.c dSFMT.c  -o hillissteele_cl_D$CL_DEVICE -DLOCALSIZE=$LOCALSIZE -DCL_DEVICE=$CL_DEVICE -lm
 gcc -O2 -std=c99 $OCLLIB downsweep.c dSFMT.c  -o downsweep_cl_D$CL_DEVICE -DLOCALSIZE=$LOCALSIZE -DCL_DEVICE=$CL_DEVICE -lm
-#gcc -O2 -std=c99 $OCLLIB prefixglobal.c dSFMT.c  -o prefixglobal_D$CL_DEVICE -DLOCALSIZE=$LOCALSIZE -DCL_DEVICE=$CL_DEVICE -lm
+gcc -O2 -std=c99 $OCLLIB prefixglobal.c dSFMT.c  -o prefixglobal_D$CL_DEVICE -DLOCALSIZE=$LOCALSIZE -DCL_DEVICE=$CL_DEVICE -lm
