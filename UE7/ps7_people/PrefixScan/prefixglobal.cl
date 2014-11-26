@@ -103,6 +103,8 @@ __kernel void prefix_scan_last_stage(__global VALUE* data, __global VALUE* sums,
 	data[2*thid+1+get_local_size(0)*2]+=sums[groudId+1];
       }
   }else{	//hillissteele
-	data[thid+get_local_size(0)]+=sums[groudId+1];
+	if(groudId<border-1){
+	  data[thid+get_local_size(0)]+=sums[groudId+1];
+	}
   }
 }
