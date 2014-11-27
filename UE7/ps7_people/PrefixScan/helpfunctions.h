@@ -6,10 +6,10 @@
 
 #define VALUE float
 
-//kernel execution time is computed for defined event, whichTime is 0 for start_time and 1 for end_time
-cl_ulong getProfileTime(cl_event* event,int index, int whichTime);
 
-void printProfileInfo(cl_ulong start, cl_ulong end, char* message);
+cl_ulong getProfileTotalTime(cl_event* event,int index);
+
+void printProfileInfo(cl_ulong time, char* message);
 
 cl_event* allocateMemoryForEvent(int numberOfEvents);
 

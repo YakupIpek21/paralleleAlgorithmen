@@ -31,7 +31,7 @@ int main(int argc, char** argv){
 	unsigned long long start_time = time_ms();
 	int event_amount=2;
 	cl_event* events=allocateMemoryForEvent(event_amount);
-	cl_ulong start, end;
+	cl_ulong total_time_hillis, total_time_downsweep;
 	//int elems = atoi(argv[1]);
 	int elems=LOCALSIZE;
 	cl_int err;
@@ -99,7 +99,7 @@ int main(int argc, char** argv){
 	CLU_ERRCHECK(clEnqueueNDRangeKernel(command_queue, kernel_hillis, 1, NULL, globalWorkGroupSize, localWorkGroupSize, 0, NULL, &(events[0])), "Failed to enqueue 2D kernel");		      
 
 	//read values back from device
-	CLU_ERRCHECK(clEnqueueReadBuffer(command_queue, mem_result_hillis, CL_TRUE, 0, elems*sizeof(VALUE), result_hillis, 0, NULL, &(events[0])),"Failed to read Min Values");
+	CLU_ERRCHECK(clEnqueueReadBuffer(command_queue, mem_result_hillis, CL_TRUE, 0, elems*sizeof(VALUE), result_hillis, 0, NULL, NULL),"Failed to read Min Values");
  
 	
 	/*improved implementation*/
@@ -110,19 +110,19 @@ int main(int argc, char** argv){
 	CLU_ERRCHECK(clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, globalWorkGroupSize, localWorkGroupSize, 0, NULL, &(events[1])), "Failed to enqueue 2D kernel");		      
 
 	//read values back from device
-	CLU_ERRCHECK(clEnqueueReadBuffer(command_queue, mem_result, CL_TRUE, 0, elems*sizeof(VALUE), result, 0, NULL, &(events[1])),"Failed to read Min Values");
+	CLU_ERRCHECK(clEnqueueReadBuffer(command_queue, mem_result, CL_TRUE, 0, elems*sizeof(VALUE), result, 0, NULL, NULL),"Failed to read Min Values");
  
+	clFinish(command_queue);
+	
 	printResult(result_hillis,LOCALSIZE,4,"HILLIS & STEELE OUTPUT");
 	
-	start=getProfileTime(events,0,0);
-	end=getProfileTime(events,0,1);
-	printProfileInfo(start,end,"Hillis & Steele Kernel Time:");
+	total_time_hillis=getProfileTotalTime(events,0);
+	printProfileInfo(total_time_hillis,"Hillis & Steele Kernel Time:");
 	
 	printResult(result, LOCALSIZE, 4, "IMPROVED IMPLEMENTATION OUTPUT");
 	
-	start=getProfileTime(events,1,0);
-	end=getProfileTime(events,1,1);
-	printProfileInfo(start,end,"Improved Algorithm Time:");
+	total_time_downsweep=getProfileTotalTime(events,1);
+	printProfileInfo(total_time_downsweep,"Improved Algorithm Time:");
 	
 	printf("OCL Device: %s\n", cluGetDeviceDescription(device_id, CL_DEVICE));
 	printf("Done, took %16llu ms\n", time_ms()-start_time);

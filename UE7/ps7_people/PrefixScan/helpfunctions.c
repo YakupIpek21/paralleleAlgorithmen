@@ -4,26 +4,19 @@
 
 #define VALUE float
 
-
-//kernel execution time is computed for defined event, whichTime is 0 for start_time and 1 for end_time
-cl_ulong getProfileTime(cl_event* event,int index, int whichTime){
+cl_ulong getProfileTotalTime(cl_event* event,int index){
   cl_ulong time_start;
   cl_ulong time_end;
   clWaitForEvents(1 , (event+index));	//profile data should only be read when the command associated with the event is finished
   clGetEventProfilingInfo(*(event+index), CL_PROFILING_COMMAND_START, sizeof(time_start), &time_start, NULL);
   clGetEventProfilingInfo(*(event+index), CL_PROFILING_COMMAND_END, sizeof(time_end), &time_end, NULL);
   
-  if(whichTime){
-    return time_end;
-  }
-  else{
-    return time_start;
-  }
+  return time_end-time_start;
 }
 
 //calc difference between start and end, print result
-void printProfileInfo(cl_ulong start, cl_ulong end, char* message){
-  printf("\n%s %0.2f ms\n",message,(double) ((end-start)/1000000));
+void printProfileInfo(cl_ulong time, char* message){
+  printf("\n%s %0.2f ms\n",message,(double) ((time)/1000000));
 }
 
 
