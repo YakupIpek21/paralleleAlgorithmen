@@ -1,11 +1,11 @@
 
-
 __kernel void prefix_scan_downSweep(__global VALUE* data, __global VALUE* result, __global VALUE* sumBuffer, __local VALUE* tmp, int border,int flag){
 
   int thid= get_global_id(0);
   int localIndex= get_local_id(0);
   int workGroupSize=get_local_size(0);
   int offset=1;
+  
   if(thid<border){
       tmp[2*localIndex]=data[2*thid];
       tmp[2*localIndex+1]=data[2*thid+1];
@@ -27,20 +27,18 @@ __kernel void prefix_scan_downSweep(__global VALUE* data, __global VALUE* result
      offset*=2;
   }
 
-  barrier(CLK_LOCAL_MEM_FENCE);
   if(flag){ //safe sums if necessary
       if(localIndex==0){ //last workitems within workgroup
 	  sumBuffer[get_group_id(0)]=tmp[(workGroupSize*2-1)];
       }
   }
-  barrier(CLK_LOCAL_MEM_FENCE);
+
   if(localIndex==0) {tmp[workGroupSize*2-1]=0;}
 
   for(int d=1; d<n; d*=2){
       offset>>=1;
       barrier(CLK_LOCAL_MEM_FENCE);
       if(localIndex<d){
-
 	int ai=offset*(2*localIndex+1)-1;
 	int bi=offset*(2*localIndex+2)-1;
 	VALUE t= tmp[ai];
@@ -48,7 +46,7 @@ __kernel void prefix_scan_downSweep(__global VALUE* data, __global VALUE* result
 	tmp[bi]+=t;
       }
   }
-  barrier(CLK_LOCAL_MEM_FENCE);
+
   //save result
   result[2*thid]=tmp[2*localIndex];
   result[2*thid+1]=tmp[2*localIndex+1];
@@ -80,16 +78,16 @@ __kernel void prefix_scan_hillissteele(__global VALUE* data, __global VALUE* res
       }
       barrier(CLK_LOCAL_MEM_FENCE);
   }
+
   if(flag){
 
     if(localIndex==n-1){ // since exclusive scan, last element must be added to total sum
 	  sumBuffer[get_group_id(0)]=tmp[pout*n+localIndex]+data[thid];
-	//  printf("GLOBALID: %d, Data_last_value: %0.0f\n",thid, data[thid]);
-	//  printf("GLOBALID: %d, LOCALID: %d,SUM VALUE: %0.0f\n",thid,localIndex,tmp[localIndex]+data[thid]);
     } 
     
   }
   result[thid]=tmp[pout*n+localIndex];
+
 }
 
 
