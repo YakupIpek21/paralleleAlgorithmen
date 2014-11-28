@@ -8,6 +8,10 @@
 #include "cl_utils.h"
 #include "helpfunctions.h"
 
+#ifndef CL_DEVICE
+  #define CL_DEVICE 0
+#endif
+
 #ifndef LOCALSIZE
   #define LOCALSIZE 256
 #endif
@@ -38,13 +42,17 @@ int main(int argc, char** argv){
 	cl_int err;
 	cl_event* events=allocateMemoryForEvent(event_amount);
 	cl_ulong total_downsweep=0,total_hillissteele=0;
-	size_t localWorkGroupSize[1]={LOCALSIZE};	//must be power of two
-	size_t globalWorkGroupSize[1]={getPowerOfTwo(roundUp(LOCALSIZE,roundUp(LOCALSIZE, elems)/2))};
+	size_t localWorkGroupSize_downSweep[1]={LOCALSIZE};	//must be power of two
+	size_t globalWorkGroupSize_downSweep[1]={getPowerOfTwo(roundUp(LOCALSIZE,roundUp(LOCALSIZE, elems)/2))};	//calculating
 	
-	int howManyWorkGroups=globalWorkGroupSize[0]/LOCALSIZE;	//quotient is power of two, since dividend and divisor are power of two
+	size_t localWorkGroupSize_hillissteele[1]={LOCALSIZE};	//must be power of two
+	size_t globalWorkGroupSize_hillissteele[1]={roundUp(LOCALSIZE,elems)};	//calculating worksize
+	
+	
+	int howManyWorkGroups=globalWorkGroupSize_downSweep[0]/LOCALSIZE;	//quotient is power of two, since dividend and divisor are power of two
 	int sumBuffer_length_downSweep=howManyWorkGroups;
-	int sumBuffer_length_hillis=getPowerOfTwo(roundUp(LOCALSIZE,elems)/LOCALSIZE);
-	
+	int sumBuffer_length_hillis=getPowerOfTwo(roundUp(LOCALSIZE,elems)/LOCALSIZE);	
+
 	VALUE *data = (VALUE*)malloc(elems*sizeof(VALUE));
 	VALUE *result_seq=(VALUE*)malloc(elems*sizeof(VALUE));
 	VALUE *result=(VALUE*)malloc(elems*sizeof(VALUE));
@@ -52,7 +60,7 @@ int main(int argc, char** argv){
 	VALUE *sum=(VALUE*)malloc(sumBuffer_length_downSweep*sizeof(VALUE));
 	VALUE *sum_hillis=(VALUE*)malloc(sumBuffer_length_hillis*sizeof(VALUE));
 	
-	
+
 	memset(sum_hillis,0,sumBuffer_length_hillis*sizeof(VALUE));
 	memset(result_seq,0,elems*sizeof(VALUE));
 	
@@ -90,9 +98,10 @@ int main(int argc, char** argv){
 	err=clEnqueueWriteBuffer(command_queue, mem_sum_hillis, CL_TRUE, 0, sumBuffer_length_hillis*sizeof(VALUE), sum_hillis, 0, NULL, NULL);
 	CLU_ERRCHECK(err, "Failed to write values into mem_sum");
 	
+
 	// create kernel from source
 	char tmp[1024];
-	sprintf(tmp," -DVALUE=%s",EXPAND_AND_QUOTE(VALUE));
+ 	sprintf(tmp,"-DVALUE=%s", EXPAND_AND_QUOTE(VALUE));
 	cl_program program = cluBuildProgramFromFile(context, device_id, KERNEL_FILE_NAME, tmp);
 	cl_kernel kernel_downSweep = clCreateKernel(program, "prefix_scan_downSweep", &err);
 	cl_kernel kernel_hillissteele=clCreateKernel(program, "prefix_scan_hillissteele", &err);
@@ -105,42 +114,41 @@ int main(int argc, char** argv){
 	// set arguments
 	int border=elems/2;
 	int flag=1;
-	//printf("Border: %d\n",border);
+	
 	cluSetKernelArguments(kernel_downSweep, 6, sizeof(cl_mem), (void *)&mem_data, sizeof(cl_mem), (void*)&mem_result,
 			      sizeof(cl_mem), (void*)&mem_sum,sizeof(VALUE)*LOCALSIZE*2, NULL, sizeof(int), (void*)&border,
 			      sizeof(int), (void*)&flag);
 
 	//execute kernel  	     
-	CLU_ERRCHECK(clEnqueueNDRangeKernel(command_queue, kernel_downSweep, 1, NULL, globalWorkGroupSize, localWorkGroupSize, 0, NULL, &(events[1])), "DownSweep_Failed to enqueue 2D kernel");		      
+	CLU_ERRCHECK(clEnqueueNDRangeKernel(command_queue, kernel_downSweep, 1, NULL, globalWorkGroupSize_downSweep, localWorkGroupSize_downSweep, 0, NULL, &(events[1])), "DownSweep_Failed to enqueue 2D kernel");		      
 	clFinish(command_queue);
 	total_downsweep+=getProfileTotalTime(events,1);
 	
 	//read values back from device
-	CLU_ERRCHECK(clEnqueueReadBuffer(command_queue, mem_result, CL_TRUE, 0, elems*sizeof(VALUE), result, 0, NULL, &(events[1])),"DownSweep_Failed to read Result Values");
-	clFinish(command_queue);
-	total_downsweep+=getProfileTotalTime(events,1);
-	/*CLU_ERRCHECK(clEnqueueReadBuffer(command_queue, mem_sum, CL_TRUE, 0, sumBuffer_length_downSweep*sizeof(VALUE), sum, 0, NULL, NULL),"Failed to read Sum Values");
+	CLU_ERRCHECK(clEnqueueReadBuffer(command_queue, mem_result, CL_TRUE, 0, elems*sizeof(VALUE), result, 0, NULL, NULL),"DownSweep_Failed to read Result Values");
+	
+	/*
+	CLU_ERRCHECK(clEnqueueReadBuffer(command_queue, mem_sum, CL_TRUE, 0, sumBuffer_length_downSweep*sizeof(VALUE), sum, 0, NULL, NULL),"Failed to read Sum Values");
 	clFinish(command_queue);
 	printSumBuffer(sum, sumBuffer_length_downSweep,"DOWNSWEEP SUM");
 	*/
-	err=clEnqueueCopyBuffer(command_queue, mem_result, mem_result_tmp, 0, 0, elems*sizeof(VALUE),0,NULL,&(events[1]));
+	err=clEnqueueCopyBuffer(command_queue, mem_result, mem_result_tmp, 0, 0, elems*sizeof(VALUE),0,NULL,NULL);
 	CLU_ERRCHECK(err,"DownSweep_Failed during copying buffer");
-	clFinish(command_queue);
-	total_downsweep+=getProfileTotalTime(events,1);
+	
 	
 	/*+++++++++++++++++++++++++++++++++DOWNSWEEP-ON-SUM-BUFFER+++++++++++++++++++++++++++++++++++++++*/
 	flag=0;
-	border=howManyWorkGroups/2;
+	border=sumBuffer_length_downSweep/2;	//since sumbuffer_length is power of two no further adaption is needed
 	cluSetKernelArguments(kernel_downSweep, 6, sizeof(cl_mem), (void *)&mem_sum, sizeof(cl_mem), (void*)&mem_sum,
 			      sizeof(cl_mem), (void*)&mem_sum,sizeof(VALUE)*sumBuffer_length_downSweep, NULL, sizeof(int), (void*)&border,
 			      sizeof(int), (void*)&flag);
 	
-	howManyWorkGroups>1 ? globalWorkGroupSize[0]=howManyWorkGroups/2:howManyWorkGroups;
-	howManyWorkGroups>1 ? localWorkGroupSize[0]=howManyWorkGroups/2:howManyWorkGroups;
+	howManyWorkGroups>1 ? globalWorkGroupSize_downSweep[0]=howManyWorkGroups/2:howManyWorkGroups;	//if 1 workgroup make adaption
+	howManyWorkGroups>1 ? localWorkGroupSize_downSweep[0]=howManyWorkGroups/2:howManyWorkGroups;	//if 1 workgroup make adaption
 	
 	
 	//execute kernel
-	CLU_ERRCHECK(clEnqueueNDRangeKernel(command_queue, kernel_downSweep, 1, NULL, globalWorkGroupSize, localWorkGroupSize, 0, NULL,&(events[1])), "DownSweep_Failed to enqueue 2D kernel");		      
+	CLU_ERRCHECK(clEnqueueNDRangeKernel(command_queue, kernel_downSweep, 1, NULL, globalWorkGroupSize_downSweep, localWorkGroupSize_downSweep, 0, NULL,&(events[1])), "DownSweep_Failed to enqueue 2D kernel");		      
 	clFinish(command_queue);
 	total_downsweep+=getProfileTotalTime(events,1);
 	/*
@@ -153,39 +161,34 @@ int main(int argc, char** argv){
 	flag=1;
 	cluSetKernelArguments(kernel_last_stage, 4, sizeof(cl_mem), (void *)&mem_result_tmp, sizeof(cl_mem), (void*)&mem_sum, sizeof(int), (void*)&border,
 			      sizeof(int), (void*)&flag);
-	globalWorkGroupSize[0]=roundUp(LOCALSIZE,getPowerOfTwo(roundUp(LOCALSIZE,roundUp(LOCALSIZE, elems)))/2);
-	localWorkGroupSize[0]=LOCALSIZE;
+	globalWorkGroupSize_downSweep[0]=getPowerOfTwo(roundUp(LOCALSIZE,roundUp(LOCALSIZE, elems)/2));
+	localWorkGroupSize_downSweep[0]=LOCALSIZE;
 	
 	//printf("GLOBALSIZE: %d\tLOCALSIZE %d\n",globalWorkGroupSize[0],localWorkGroupSize[0]);
 	
 	//execute kernel  	     
-	CLU_ERRCHECK(clEnqueueNDRangeKernel(command_queue, kernel_last_stage, 1, NULL, globalWorkGroupSize, localWorkGroupSize, 0, NULL, &(events[1])), "DownSweep_Failed to enqueue 2D kernel");		      
+	CLU_ERRCHECK(clEnqueueNDRangeKernel(command_queue, kernel_last_stage, 1, NULL, globalWorkGroupSize_downSweep, localWorkGroupSize_downSweep, 0, NULL, &(events[1])), "DownSweep_Failed to enqueue 2D kernel");		      
 	clFinish(command_queue);
 	total_downsweep+=getProfileTotalTime(events,1);
 	//read values back from device
-	CLU_ERRCHECK(clEnqueueReadBuffer(command_queue, mem_result_tmp, CL_TRUE, 0, elems*sizeof(VALUE), result, 0, NULL, &(events[1])),"DownSweep_Failed to read Result Values");
-	clFinish(command_queue);
-	total_downsweep+=getProfileTotalTime(events,1);
+	CLU_ERRCHECK(clEnqueueReadBuffer(command_queue, mem_result_tmp, CL_TRUE, 0, elems*sizeof(VALUE), result, 0, NULL, NULL),"DownSweep_Failed to read Result Values");
+	
 	
 	/*---------------------------------------HILLISSTEELE----------------------------------------------------------*/
 	
 	
 	flag=1;
 	border=elems;
-	//printf("BORDER WITHING HOST: %d\n",border);
 	
 	cluSetKernelArguments(kernel_hillissteele, 6, sizeof(cl_mem), (void *)&mem_data_hillis, sizeof(cl_mem), (void*)&mem_result,
 			      sizeof(cl_mem), (void*)&mem_sum_hillis,sizeof(VALUE)*LOCALSIZE*2, NULL, sizeof(int), (void*)&border,
 			      sizeof(int), (void*)&flag);
 
-	//execute kernel
-	globalWorkGroupSize[0]=roundUp(LOCALSIZE,elems);
-	localWorkGroupSize[0]=LOCALSIZE;
-	
+	//execute kernel	
 	//printf("GlobalSize: %d\tLocalWorkGroupSize: %d\n",globalWorkGroupSize[0], localWorkGroupSize[0]);
 	//printf("Amount of WorkGroups: %d\n", globalWorkGroupSize[0]/localWorkGroupSize[0]);
 	
-	CLU_ERRCHECK(clEnqueueNDRangeKernel(command_queue, kernel_hillissteele, 1, NULL, globalWorkGroupSize, localWorkGroupSize, 0, NULL, &(events[0])), "Hillissteele_Failed to enqueue 2D kernel");		      
+	CLU_ERRCHECK(clEnqueueNDRangeKernel(command_queue, kernel_hillissteele, 1, NULL, globalWorkGroupSize_hillissteele, localWorkGroupSize_hillissteele, 0, NULL, &(events[0])), "Hillissteele_Failed to enqueue 2D kernel_Inputbuffer");		      
 	
 	clFinish(command_queue);
 	total_hillissteele+=getProfileTotalTime(events,0);
@@ -207,11 +210,10 @@ int main(int argc, char** argv){
 			      sizeof(int), (void*)&flag);
 
 	//execute kernel
-	globalWorkGroupSize[0]=sumBuffer_length_hillis;
-	localWorkGroupSize[0]=sumBuffer_length_hillis;
-	CLU_ERRCHECK(clEnqueueNDRangeKernel(command_queue, kernel_hillissteele, 1, NULL, globalWorkGroupSize, localWorkGroupSize, 0, NULL, &(events[0])), "Hillissteele_Failed to enqueue 2D kernel");		      
+	globalWorkGroupSize_hillissteele[0]=sumBuffer_length_hillis;
+	localWorkGroupSize_hillissteele[0]=sumBuffer_length_hillis;
+	CLU_ERRCHECK(clEnqueueNDRangeKernel(command_queue, kernel_hillissteele, 1, NULL, globalWorkGroupSize_hillissteele, localWorkGroupSize_hillissteele, 0, NULL, &(events[0])), "Hillissteele_Failed to enqueue 2D kernel_Sumbuffer");		      
 	
-	//howManyWorkGroups=globalWorkGroupSize[0]/LOCALSIZE;
 	clFinish(command_queue);
 	total_hillissteele+=getProfileTotalTime(events,0);
 	
@@ -228,20 +230,19 @@ int main(int argc, char** argv){
 	cluSetKernelArguments(kernel_last_stage, 4, sizeof(cl_mem), (void *)&mem_result, sizeof(cl_mem), (void*)&mem_sum_hillis, sizeof(int), (void*)&border,
 			      sizeof(int), (void*)&flag);
 	
-	globalWorkGroupSize[0]=roundUp(LOCALSIZE,elems);
-	localWorkGroupSize[0]=LOCALSIZE;
+	globalWorkGroupSize_hillissteele[0]=roundUp(LOCALSIZE,elems);
+	localWorkGroupSize_hillissteele[0]=LOCALSIZE;
 	
 	//printf("GLOBALSIZE: %d\tLOCALSIZE %d\n",globalWorkGroupSize[0],localWorkGroupSize[0]);
 	
 	//execute kernel  	     
-	CLU_ERRCHECK(clEnqueueNDRangeKernel(command_queue, kernel_last_stage, 1, NULL, globalWorkGroupSize, localWorkGroupSize, 0, NULL, &(events[0])), "Hillissteele_Failed to enqueue kernel");		      
+	CLU_ERRCHECK(clEnqueueNDRangeKernel(command_queue, kernel_last_stage, 1, NULL, globalWorkGroupSize_hillissteele, localWorkGroupSize_hillissteele, 0, NULL, &(events[0])), "Hillissteele_Failed to enqueue kernel_Last_stage");		      
 	clFinish(command_queue);
 	total_hillissteele+=getProfileTotalTime(events,0);
 	
 	//read values back from device
-	CLU_ERRCHECK(clEnqueueReadBuffer(command_queue, mem_result, CL_TRUE, 0, elems*sizeof(VALUE), result_hillissteele, 0, NULL, &(events[0])),"Hillissteele_Failed to read Result Values");
-	clFinish(command_queue);
-	total_hillissteele+=getProfileTotalTime(events,0);
+	CLU_ERRCHECK(clEnqueueReadBuffer(command_queue, mem_result, CL_TRUE, 0, elems*sizeof(VALUE), result_hillissteele, 0, NULL, NULL),"Hillissteele_Failed to read Result Values");
+	
 	
 	/*-------------------------FINISHED---------------------------------------------*/
 	
